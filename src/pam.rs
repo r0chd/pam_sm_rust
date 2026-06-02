@@ -210,7 +210,7 @@ macro_rules! pam_module {
         // Callback entry definition.
         macro_rules! pam_callback {
             ($pam_cb:ident, $rust_cb:ident) => {
-                #[no_mangle]
+                #[unsafe(no_mangle)]
                 #[doc(hidden)]
                 pub unsafe extern "C" fn $pam_cb(
                     pamh: pamsm::Pam,
@@ -235,7 +235,7 @@ macro_rules! pam_module {
                             Err(_) => return pamsm::PamError::SERVICE_ERR as c_int,
                         };
                     }
-                    <$pamsm_ty>::$rust_cb(pamh, pamsm::PamFlags::from_bits_unchecked(flags), args)
+                    <$pamsm_ty>::$rust_cb(pamh, pamsm::PamFlags::from_bits_retain(flags), args)
                         as c_int
                 }
             };
