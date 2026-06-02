@@ -1,8 +1,8 @@
-#![allow(dead_code)]
 #![allow(non_camel_case_types)]
+#![allow(unused)]
 #![allow(clippy::upper_case_acronyms)]
 
-use pam::PamError;
+use super::pam::PamError;
 use std::option::Option;
 use std::os::raw::{c_char, c_int, c_void};
 use std::ptr::NonNull;

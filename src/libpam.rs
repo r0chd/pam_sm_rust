@@ -1,7 +1,7 @@
-#![allow(dead_code)]
-
-use pam::{Pam, PamError, PamFlags};
-use pam_types::{LogLvl, PamConv, PamHandle, PamItemType, PamMessage, PamMsgStyle, PamResponse};
+use crate::pam::{Pam, PamError, PamFlags};
+use crate::pam_types::{
+    LogLvl, PamConv, PamHandle, PamItemType, PamMessage, PamMsgStyle, PamResponse,
+};
 use std::ffi::{CStr, CString, NulError};
 use std::ops::Deref;
 use std::option::Option;

@@ -1,9 +1,8 @@
 // Copyright (c) 2017 raphael.catolino@gmail.com
 
 #![allow(non_camel_case_types)]
-#![allow(clippy::upper_case_acronyms)]
 
-use pam_types::PamHandle;
+use super::pam_types::PamHandle;
 use std::fmt;
 use std::os::raw::c_int;
 
@@ -236,7 +235,8 @@ macro_rules! pam_module {
                             Err(_) => return pamsm::PamError::SERVICE_ERR as c_int,
                         };
                     }
-                    <$pamsm_ty>::$rust_cb(pamh, pamsm::PamFlags::from_bits_unchecked(flags), args) as c_int
+                    <$pamsm_ty>::$rust_cb(pamh, pamsm::PamFlags::from_bits_unchecked(flags), args)
+                        as c_int
                 }
             };
         }
