@@ -110,6 +110,8 @@ pub trait PamLibExt: private::Sealed {
     /// Returns PamError::SERVICE_ERR if the prompt contains any null byte
     fn get_user(&self, prompt: Option<&str>) -> PamResult<Option<&CStr>>;
 
+    fn get_tty(&self) -> PamResult<Option<&CStr>>;
+
     /// Get the username, i.e. the PAM_USER item. If it's not set return None.
     fn get_cached_user(&self) -> PamResult<Option<&CStr>>;
 
@@ -228,6 +230,10 @@ impl PamLibExt for Pam {
         } else {
             r.to_result(Some(unsafe { CStr::from_ptr(raw_user) }))
         }
+    }
+
+    fn get_tty(&self) -> PamResult<Option<&CStr>> {
+        self.get_cstr_item(PamItemType::TTY)
     }
 
     fn get_cached_user(&self) -> PamResult<Option<&CStr>> {
@@ -351,25 +357,25 @@ impl PamLibExt for Pam {
     ) -> PamResult<()> {
         // The data has to be allocated on the heap because it will outlive the call stack.
         let data_copy = Box::new(data);
-        PamError::new(pam_set_data(
-            self.0,
-            CString::new(module_name)?.as_ptr(),
-            Box::into_raw(data_copy) as *mut c_void,
-            Some(pam_data_cleanup::<T>),
-        ))
+        PamError::new(unsafe {
+            pam_set_data(
+                self.0,
+                CString::new(module_name)?.as_ptr(),
+                Box::into_raw(data_copy) as *mut c_void,
+                Some(pam_data_cleanup::<T>),
+            )
+        })
         .to_result(())
     }
 
     unsafe fn retrieve_data<T: PamData + Clone + Send>(&self, module_name: &str) -> PamResult<T> {
         let mut data_ptr: *const c_void = ptr::null();
         // pam_get_data should be safe as long as T is the type that what used in send_data.
-        PamError::new(pam_get_data(
-            self.0,
-            CString::new(module_name)?.as_ptr(),
-            &mut data_ptr,
-        ))
+        PamError::new(unsafe {
+            pam_get_data(self.0, CString::new(module_name)?.as_ptr(), &mut data_ptr)
+        })
         .to_result(data_ptr as *const T)
-        .map(|ptr| (*ptr).clone()) // pam guaranties the data is valid when SUCCESS is returned.
+        .map(|ptr| unsafe { (*ptr).clone() }) // pam guaranties the data is valid when SUCCESS is returned.
     }
 
     fn send_bytes(
@@ -401,20 +407,22 @@ unsafe extern "C" fn pam_data_cleanup<T: PamData + Clone + Send>(
     data: *mut c_void,
     error_status: c_int,
 ) {
-    Box::from_raw(data as *mut T).cleanup(
-        Pam(handle),
-        PamFlags::from_bits_truncate(error_status),
-        PamError::new(error_status & 0xff),
-    );
+    unsafe {
+        Box::from_raw(data as *mut T).cleanup(
+            Pam(handle),
+            PamFlags::from_bits_truncate(error_status),
+            PamError::new(error_status & 0xff),
+        )
+    };
 }
 
 unsafe fn set_item(pamh: PamHandle, item_type: PamItemType, item: *const c_void) -> PamResult<()> {
-    PamError::new(pam_set_item(pamh, item_type as c_int, item)).to_result(())
+    PamError::new(unsafe { pam_set_item(pamh, item_type as c_int, item) }).to_result(())
 }
 
 // Raw functions
 #[link(name = "pam")]
-extern "C" {
+unsafe extern "C" {
     pub fn pam_set_item(pamh: PamHandle, item_type: c_int, item: *const c_void) -> c_int;
     pub fn pam_get_item(pamh: PamHandle, item_type: c_int, item: *mut *const c_void) -> c_int;
     pub fn pam_strerror(pamh: PamHandle, errnum: c_int) -> *const c_char;
