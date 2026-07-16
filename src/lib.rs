@@ -37,6 +37,6 @@ mod pam_types;
 pub use pam::{Pam, PamError, PamFlags, PamSendRef, PamServiceModule};
 
 #[cfg(feature = "libpam")]
-pub use libpam::{PamCleanupCb, PamData, PamLibExt, PamResult};
+pub use libpam::{PamCleanupCb, PamData, PamEnvList, PamLibExt, PamResult};
 #[cfg(feature = "libpam")]
 pub use pam_types::{LogLvl, PamMsgStyle};

@@ -12,6 +12,24 @@ pub type PamResult<T> = Result<T, PamError>;
 /// Prototype of the callback used with [`PamLibExt::send_bytes`]
 pub type PamCleanupCb = fn(&Vec<u8>, Pam, PamFlags, PamError);
 
+/// Owned copy of the PAM environment list returned by [`PamLibExt::getenvlist`].
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct PamEnvList {
+    env: Vec<CString>,
+}
+
+impl PamEnvList {
+    /// Iterate over environment entries in `NAME=value` form.
+    pub fn iter(&self) -> impl Iterator<Item = &CStr> {
+        self.env.iter().map(CString::as_c_str)
+    }
+
+    /// Return the copied environment entries in `NAME=value` form.
+    pub fn into_vec(self) -> Vec<CString> {
+        self.env
+    }
+}
+
 #[derive(Clone)]
 struct PamByteData {
     cb: Option<PamCleanupCb>,
@@ -142,6 +160,9 @@ pub trait PamLibExt: private::Sealed {
 
     /// Get a variable from the pam environment list.
     fn getenv(&self, name: &str) -> PamResult<Option<&CStr>>;
+
+    /// Get a copy of the full pam environment list.
+    fn getenvlist(&self) -> PamResult<PamEnvList>;
 
     /// Put a variable in the pam environment list.
     /// `name_value` takes for form documented in pam_putent(3) :
@@ -345,6 +366,26 @@ impl PamLibExt for Pam {
         }
     }
 
+    fn getenvlist(&self) -> PamResult<PamEnvList> {
+        let raw_env = unsafe { pam_getenvlist(self.0) };
+        if raw_env.is_null() {
+            return Ok(PamEnvList::default());
+        }
+
+        let mut env = Vec::new();
+        let mut entry = raw_env;
+        unsafe {
+            while !(*entry).is_null() {
+                env.push(CStr::from_ptr(*entry).to_owned());
+                free((*entry).cast::<c_void>());
+                entry = entry.add(1);
+            }
+            free(raw_env.cast::<c_void>());
+        }
+
+        Ok(PamEnvList { env })
+    }
+
     fn putenv(&self, name_value: &str) -> PamResult<()> {
         let cenv = CString::new(name_value)?;
         unsafe { PamError::new(pam_putenv(self.0, cenv.as_ptr())).to_result(()) }
@@ -450,4 +491,8 @@ unsafe extern "C" {
     ) -> c_int;
 
     pub fn pam_syslog(pamh: PamHandle, priority: c_int, fmt: *const c_char, ...) -> c_void;
+}
+
+unsafe extern "C" {
+    fn free(ptr: *mut c_void);
 }
